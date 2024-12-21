@@ -102,12 +102,12 @@ Format your response exactly as follows:
 
 
 def main():
-    st.title("📚 논문 검색 및 분석기")
+    st.title("📚 논문 검색 · 분석기")
 
     with st.sidebar:
         st.header("검색 설정")
         topic = st.text_input(
-            "검색할 주제를 입력하세요:", placeholder="예: machine learning"
+            "검색할 주제를 입력하세요:", placeholder="ex) machine learning"
         )
         search_button = st.button("검색")
         should_search = search_button or (
@@ -118,9 +118,14 @@ def main():
         st.markdown(
             """
         ### 사용 방법
-        1. 검색하고 싶은 주제를 입력하세요
-        2. 검색 결과에서 관심 있는 논문을 선택하세요
-        3. AI 요약 보기를 클릭하면 AI가 생성한 요약문을 볼 수 있습니다
+        1. 검색하고 싶은 주제를 입력하세요.
+        2. 검색 결과에서 관심 있는 논문을 선택하세요.
+        3. **PDF 링크**를 클릭하면 논문 PDF를 열 수 있습니다.
+        4. **AI 요약 보기**를 클릭하면 AI가 생성한 요약문을 볼 수 있습니다.
+            - **Summary**: 논문 전체 요약
+            - **Key Findings**: 주요 결과 및 결론
+            - **Methodology & Results**: 방법론 및 실험 결과
+        5. **요약문 다운로드**를 클릭하면 요약문을 다운로드할 수 있습니다.
         """
         )
 
@@ -137,7 +142,7 @@ def main():
             st.session_state.search_results = results
 
     if "search_results" in st.session_state:
-        st.header("검색 결과")
+        st.subheader("검색 결과")
 
         for idx, result in enumerate(st.session_state.search_results):
             summary_key = f"summary_content_{idx}"
