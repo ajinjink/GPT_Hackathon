@@ -199,7 +199,7 @@ def main():
 
 if __name__ == "__main__":
     st.set_page_config(
-        page_title="ArXiv Paper Viewer & Analyzer",
+        page_title="논문 검색 · 분석기",
         page_icon="📚",
         layout="wide",
         initial_sidebar_state="expanded",
