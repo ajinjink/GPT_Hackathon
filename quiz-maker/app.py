@@ -1,7 +1,6 @@
 import streamlit as st
 import PyPDF2
 import json
-import io
 import base64
 import os
 from dotenv import load_dotenv
@@ -38,7 +37,7 @@ class PDFQuestionGenerator:
         splits = text_splitter.split_text(text)
         return splits
 
-    def create_questions_from_chunk(self, chunk, number_of_questions, feedback=''):
+    def create_questions_from_chunk(self, chunk, number_of_questions, feedback='', requirements =''):
         """
         특정 청크에서 문제를 생성합니다.
         - chunk: 텍스트 청크
@@ -52,6 +51,7 @@ class PDFQuestionGenerator:
                     "role": "system",
                     "content": f"""
                     입력된 내용을 바탕으로 {number_of_questions}개의 문제를 만들어주세요:
+                    요구사항 : {requirements}
                     feedback 내용은 다음과 같습니다.
                     {feedback}
                     feedback이 있으면 그것을 참고하여 문제를 만들어주세요.
@@ -70,31 +70,31 @@ class PDFQuestionGenerator:
                     "schema": {
                         "type": "object",
                         "properties": {
-                            "problems": {
+                            "questions": {
                                 "type": "array",
-                                "description": "A collection of problems, where each problem is paired with its answer.",
+                                "description": "A collection of questions, where each question is paired with its answer.",
                                 "items": {
                                     "type": "object",
                                     "properties": {
-                                        "problem": {
+                                        "question": {
                                             "type": "string",
-                                            "description": "The statement of the problem."
+                                            "description": "The statement of the question."
                                         },
                                         "answer": {
                                             "type": "string",
-                                            "description": "The solution or answer to the problem."
+                                            "description": "The solution or answer to the question."
                                         }
                                     },
-                                    "required": ["problem", "answer"],
+                                    "required": ["question", "answer"],
                                     "additionalProperties": False
                                 }
                             },
                             "number_of_problems": {
                                 "type": "number",
-                                "description": "The total number of problems represented in the problems array."
+                                "description": "The total number of questions represented in the questions array."
                             }
                         },
-                        "required": ["problems", "number_of_problems"],
+                        "required": ["questions", "number_of_problems"],
                         "additionalProperties": False
                     }
                 }
@@ -171,7 +171,7 @@ def main():
             num_questions = st.number_input(
                 "생성할 문제 수를 입력하세요",
                 min_value=1,
-                value=5
+                value=20
             )
 
             detail_level = st.select_slider(
@@ -179,6 +179,8 @@ def main():
                 options=["하", "중", "상"],
                 value="중"
             )
+            
+            requirements = st.text_input("요구사항을 입력하세요", value="문제는 중요한 개념을 다루고 있어야 합니다.")
 
             st.markdown("---")
             st.markdown("### 모든 설정이 완료되었다면 문제 생성을 시작하세요")
@@ -214,10 +216,10 @@ def main():
                 # 현재 청크의 문제 생성
                 current_chunk = st.session_state.text_chunks[st.session_state.current_chunk - 1]
                 questions_response = st.session_state.generator.create_questions_from_chunk(
-                    current_chunk, questions_per_chunk, feedback
+                    current_chunk, questions_per_chunk, feedback, requirements
                 )
                 questions_response = json.loads(questions_response)
-                current_questions = questions_response["problems"]
+                current_questions = questions_response["questions"]
                 
                 st.success(f"{len(current_questions)}개의 문제가 생성되었습니다!")
                 
@@ -225,7 +227,7 @@ def main():
                 with st.expander("생성된 문제 미리보기", expanded=True):
                     for i, q in enumerate(current_questions, 1):
                         st.markdown(f"**문제 {i}**")
-                        st.write(f"Q: {q['problem']}")
+                        st.write(f"Q: {q['question']}")
                         st.write(f"A: {q['answer']}")
                         st.divider()
                 
