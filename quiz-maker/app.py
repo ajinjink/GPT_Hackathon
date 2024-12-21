@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from PyPDF2 import PdfReader
 from openai import OpenAI
+import concurrent.futures
 
 class PDFQuestionGenerator:
     def __init__(self, api_key):
@@ -106,6 +107,31 @@ class PDFQuestionGenerator:
             presence_penalty=0
         )
         return response.choices[0].message.content
+    
+    def generate_questions_in_parallel(self, text_chunks, questions_per_chunk, requirements):
+        """
+        다중 스레드를 활용하여 문제를 병렬 생성.
+        
+        Args:
+            text_chunks (list): 청크 리스트.
+            questions_per_chunk (int): 청크당 생성할 문제 수.
+            requirements (str): 문제 생성 요구사항.
+        
+        Returns:
+            list: 모든 청크의 생성된 문제 리스트.
+        """
+        def process_chunk(chunk):
+            """개별 청크에 대해 문제 생성"""
+            response = self.create_questions_from_chunk(chunk, questions_per_chunk, "", requirements)
+            return json.loads(response)["questions"]
+        
+        all_questions = []
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [executor.submit(process_chunk, chunk) for chunk in text_chunks]
+            for future in concurrent.futures.as_completed(futures):
+                all_questions.extend(future.result())
+        
+        return all_questions
 
 def get_download_link(json_data, filename="questions.json"):
     """JSON 데이터를 다운로드 가능한 링크로 변환"""
@@ -184,6 +210,7 @@ def main():
 
             st.markdown("---")
             st.markdown("### 모든 설정이 완료되었다면 문제 생성을 시작하세요")
+            feedback_enabled = st.checkbox("문제 생성 과정에서 피드백을 제공하겠습니까?", value=True)
 
             # 문제 생성 시작
             if not st.session_state.generation_started and st.button("문제 생성 시작"):
@@ -197,9 +224,30 @@ def main():
                     )
                     st.session_state.generation_started = True
                     st.rerun()
+        #피드백 없이 자동 문제 생성 프로세스
+        if not feedback_enabled and st.session_state.generation_started:
+            chunk_number = len(st.session_state.text_chunks)
+            questions_per_chunk = max(1, num_questions // chunk_number)
 
-        # 문제 생성 프로세스
-        if st.session_state.generation_started:
+            st.info("피드백 없이 문제를 병렬로 생성 중입니다...")
+            with st.spinner("문제를 생성하는 중..."):
+                all_questions = st.session_state.generator.generate_questions_in_parallel(st.session_state.text_chunks, questions_per_chunk, requirements)
+            st.success("모든 청크의 문제 생성이 완료되었습니다!")
+            st.session_state.generation_started = False
+
+            # 최종 다운로드 링크
+            download_link = get_download_link(all_questions)
+            st.markdown(
+                f'<a href="{download_link}" download="questions.json">전체 문제 JSON 파일 다운로드</a>',
+                unsafe_allow_html=True
+            )
+
+            # 새로운 문제 생성 시작
+            if st.button("새로운 문제 생성 시작"):
+                reset_session()
+                st.rerun()
+        # 피드백을 통해 문제 생성 프로세스
+        if feedback_enabled and st.session_state.generation_started:
             chunk_number = len(st.session_state.text_chunks)
             questions_per_chunk = max(1, num_questions // chunk_number)
             

@@ -1,6 +1,16 @@
 import streamlit as st
 import time
 from datetime import datetime
+from email_management import email_manage
+from langchain_openai import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+from dotenv import load_dotenv
+import os
+
+load_dotenv('.env')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
 
 # CSS 스타일 정의
 st.markdown("""
@@ -33,98 +43,115 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 더미 이메일 데이터 - 스레드 포함
-initial_emails = [
-    {
-        "thread_id": "1",
-        "subject": "제품 문의",
-        "messages": [
-            {
-                "from": "client@example.com",
-                "to": "user@example.com",
-                "content": "안녕하세요, 귀사의 제품 A와 B에 대해 궁금한 점이 있습니다.",
-                "timestamp": "2024-12-20 09:30",
-                "type": "received"
-            },
-            {
-                "from": "user@example.com",
-                "to": "client@example.com",
-                "content": "안녕하세요, 어떤 점이 궁금하신지 말씀해 주시면 감사하겠습니다.",
-                "timestamp": "2024-12-20 10:15",
-                "type": "sent"
-            },
-            {
-                "from": "client@example.com",
-                "to": "user@example.com",
-                "content": "제품 A의 가격과 B의 배송 기간이 궁금합니다.",
-                "timestamp": "2024-12-21 09:30",
-                "type": "received"
-            }
-        ]
-    },
-    {
-        "thread_id": "2",
-        "subject": "미팅 일정 조율",
-        "messages": [
-            {
-                "from": "partner@example.com",
-                "to": "user@example.com",
-                "content": "다음 주 미팅 일정 조율을 위해 연락드립니다.",
-                "timestamp": "2024-12-20 14:30",
-                "type": "received"
-            },
-            {
-                "from": "user@example.com",
-                "to": "partner@example.com",
-                "content": "네, 다음 주 월요일 오후는 어떠신가요?",
-                "timestamp": "2024-12-20 15:45",
-                "type": "sent"
-            },
-            {
-                "from": "partner@example.com",
-                "to": "user@example.com",
-                "content": "죄송하지만 월요일은 다른 일정이 있습니다. 화요일이나 수요일은 가능할까요?",
-                "timestamp": "2024-12-21 10:15",
-                "type": "received"
-            }
-        ]
-    }
-]
+def get_emails(email_manager, useremail, password):
+    _, emails_dict = email_manager.fetch_email(useremail, password)
+    
+    # Transform the emails dictionary into the expected thread format
+    threads = []
+    for subject, messages in emails_dict.items():
+        thread = {
+            "thread_id": str(len(threads) + 1),
+            "subject": subject,
+            "messages": messages
+        }
+        threads.append(thread)
+    
+    return threads
 
-# AI 답장 생성 더미 함수
 def generate_ai_response(thread):
-    time.sleep(1)  # AI 처리 시간 시뮬레이션
-    last_message = thread["messages"][-1]["content"]
-    responses = {
-        "제품 A의 가격과 B의 배송 기간이 궁금합니다.": 
-            "제품 A의 가격은 99,000원이며, 제품 B는 현재 7일 이내 배송이 가능합니다. 추가로 궁금하신 점이 있으시다면 말씀해 주세요.",
-        "죄송하지만 월요일은 다른 일정이 있습니다. 화요일이나 수요일은 가능할까요?":
-            "네, 화요일 오후 2시에 미팅을 진행하면 좋을 것 같습니다. 가능하신가요?"
-    }
-    return responses.get(last_message, "죄송합니다. 요청하신 내용을 처리할 수 없습니다.")
+    """
+    Generate AI response for an email thread using OpenAI.
+    
+    Args:
+        thread (dict): Email thread containing messages and subject
+        
+    Returns:
+        str: Generated response
+    """
+    # Initialize ChatOpenAI
+    llm = ChatOpenAI(
+        temperature=0.7,
+        model_name="gpt-4o-mini"
+    )
+    
+    # Create prompt template
+    template = """
+    당신은 전문적이고 공손한 이메일 응답을 작성하는 비서입니다.
+    다음 이메일 스레드를 분석하고 적절한 응답을 작성해주세요.
+    
+    이메일 제목: {subject}
+    
+    이전 대화 내역:
+    {conversation_history}
+    
+    마지막 메시지:
+    {last_message}
+    
+    다음 사항을 고려하여 답장을 작성해주세요:
+    1. 공손하고 전문적인 톤을 유지하세요
+    2. 이전 대화 맥락을 고려하세요
+    3. 구체적이고 명확한 답변을 제공하세요
+    4. 필요한 경우 추가 질문이나 명확한 설명을 포함하세요
+    
+    답장:
+    """
+    
+    # Create prompt from template
+    prompt = PromptTemplate(
+        input_variables=["subject", "conversation_history", "last_message"],
+        template=template
+    )
+    
+    # Create chain
+    chain = LLMChain(llm=llm, prompt=prompt)
+    
+    # Prepare conversation history
+    conversation_history = "\n".join([
+        f"From: {msg['from']}\n내용: {msg['content']}\n"
+        for msg in thread['messages'][:-1]  # Exclude the last message
+    ])
+    
+    # Get last message
+    last_message = thread['messages'][-1]['content']
+    
+    # Generate response
+    response = chain.run({
+        "subject": thread['subject'],
+        "conversation_history": conversation_history,
+        "last_message": last_message
+    })
+    
+    return response.strip()
 
-# 이메일 전송 더미 함수
-def send_email(to_address, content):
-    time.sleep(1)  # 전송 시간 시뮬레이션
-    print("send: :", content)
-    return True
+def safe_generate_ai_response(thread):
+    """
+    Safely generate AI response with error handling.
+    """
+    try:
+        return generate_ai_response(thread)
+    except Exception as e:
+        print(f"Error generating AI response: {str(e)}")
+        return "죄송합니다. 답장 생성 중 오류가 발생했습니다. 다시 시도해 주세요."
 
-def handle_email_send(thread_idx, thread):
+def handle_email_send(thread_idx, thread, email_manager, user, password):
     """이메일 전송 처리를 위한 함수"""
     text_to_send = st.session_state.edited_texts[f"thread_{thread_idx}"]
-    success = send_email(thread['messages'][-1]['from'], text_to_send)
-    if success:
-        # 상태 초기화를 위한 플래그 설정
-        st.session_state[f"email_sent_{thread_idx}"] = True
-        st.rerun()
+    
+    receiver = thread['messages'][-1]['from']
+    subject = thread['subject']
+    try:
+        email_manager.send_email(user, password, receiver, subject, text_to_send)
+        return True
+    except Exception as e:
+        st.error(f"Failed to send email: {str(e)}")
+        return False
 
 def on_text_change(thread_idx):
     key = f"textarea_{thread_idx}"
     if key in st.session_state:
         st.session_state.edited_texts[f"thread_{thread_idx}"] = st.session_state[key]
-        print(f"텍스트 변경됨: {st.session_state[key]}")  # 디버깅용
 
-def main():
+def main(email_manager, useremail, password):
     st.title("📧 AI 이메일 어시스턴트")
     
     # 세션 상태 초기화
@@ -135,15 +162,9 @@ def main():
     if 'edited_texts' not in st.session_state:
         st.session_state.edited_texts = {}
     if 'emails' not in st.session_state:
-        st.session_state.emails = initial_emails
-    
-    # 사이드바에 이메일 계정 정보
-    with st.sidebar:
-        st.header("계정 정보")
-        email = st.text_input("이메일 주소", value="user@example.com")
-        password = st.text_input("비밀번호", type="password", value="dummy_password")
-        if st.button("로그인"):
-            st.success("로그인 되었습니다!")
+        st.session_state.emails = get_emails(email_manager, useremail, password)
+    if 'expanded_threads' not in st.session_state:
+        st.session_state.expanded_threads = set()
 
     # 메인 화면
     tab1, tab2 = st.tabs(["📥 받은 메일함", "📤 보낸 메일함"])
@@ -151,7 +172,18 @@ def main():
     with tab1:
         st.subheader("받은 메일함")
         for idx, thread in enumerate(st.session_state.emails):
-            with st.expander(f"📨 {thread['subject']} ({len(thread['messages'])}개의 메시지)"):
+            thread_key = f"expander_{idx}"
+            if thread_key not in st.session_state:
+                st.session_state[thread_key] = False
+            if f"thread_{idx}" in st.session_state.ai_responses or st.session_state.edit_mode.get(idx, False):
+                st.session_state[thread_key] = True
+                
+            with st.expander(f"📨 {thread['subject']} ({len(thread['messages'])}개의 메시지)", expanded=st.session_state[thread_key]):
+                # expander가 클릭되었을 때만 상태 변경
+                if st.session_state[thread_key]:
+                    st.session_state.expanded_threads.add(idx)
+                else:
+                    st.session_state.expanded_threads.discard(idx)
                 # 이메일 스레드 표시
                 for message in thread['messages']:
                     css_class = "sent-message" if message['type'] == 'sent' else "received-message"
@@ -197,7 +229,7 @@ def main():
                                 st.session_state.ai_responses[f"thread_{idx}"]
                             )
                         
-                        # text_area with callback
+                        # text_area
                         st.text_area(
                             "답장을 수정해주세요",
                             key=f"textarea_{idx}",
@@ -219,7 +251,7 @@ def main():
                                     st.session_state.ai_responses[f"thread_{idx}"]
                                 )
 
-                                success = send_email(thread['messages'][-1]['from'], text_to_send)
+                                success = handle_email_send(idx, thread, email_manager, useremail, password)
                                 if success:
                                     # 메시지를 스레드에 추가
                                     new_message = {
@@ -267,6 +299,8 @@ def main():
                                 if f"thread_{idx}" not in st.session_state.edited_texts:
                                     st.session_state.edited_texts[f"thread_{idx}"] = st.session_state.ai_responses[f"thread_{idx}"]
                             
+                            # expander 상태를 유지하면서 수정 모드 전환
+                            st.session_state[f"expander_{idx}"] = True
                             st.session_state.edit_mode[idx] = not current_edit_mode
                             st.rerun()
     
@@ -293,4 +327,9 @@ def main():
             st.info("아직 보낸 메일이 없습니다.")
 
 if __name__ == "__main__":
-    main()
+    email_a = os.getenv('USER_EMAIL')
+    password = os.getenv('PASSWORD')
+
+    email_manager = email_manage()
+    main(email_manager, email_a, password)
+
