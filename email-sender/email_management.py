@@ -1,7 +1,10 @@
 import imaplib
-import email
 import smtplib
+import email
 from email.mime.text import MIMEText
+from email.header import decode_header, make_header
+import itertools
+
 
 class email_manage():
     def box_id(self, imap_list):
@@ -18,9 +21,9 @@ class email_manage():
         status, messages = imap.uid('search', None, 'ALL')
         messages = messages[0].split()
 
+        memorys = []
         mails = []
-        for recent in messages[-10:]:
-            dic = {}
+        for recent in messages:
 
             res, msg = imap.uid('fetch', recent, "(RFC822)")
             raw = msg[0][1].decode('utf-8')
@@ -30,7 +33,7 @@ class email_manage():
             # raw에서 원하는 부분만 파싱하기 위해 email 모듈을 이용해 변환
             email_message = email.message_from_string(raw)
 
-            from email.header import decode_header, make_header
+            
             
             # 보낸 사람, 받는 사람
             try:
@@ -43,9 +46,10 @@ class email_manage():
                 sender = str(make_header(decode_header(email_message.get('From')))).split('<')[1][:-1]
 
             # 메일 제목
-            subject = make_header(decode_header(email_message.get('Subject')))
+            subject = str(make_header(decode_header(email_message.get('Subject'))))
 
             # 메일 내용
+            body = ''
             if email_message.is_multipart():
                 for part in email_message.walk():
                     ctype = part.get_content_type()
@@ -61,20 +65,29 @@ class email_manage():
             except:
                 pass
             # 시간
-            time = str(make_header(decode_header(email_message.get('Received')))).split('\n')[-1].strip()
+            try:
+                time = str(make_header(decode_header(email_message.get('Received')))).split('\n')[-1].strip()
 
-            
-            mail = {}
-            mail['from'] = sender
-            mail['to'] = receiver
-            mail['content'] = body
-            mail['timestamp'] = time
-            mail['type'] = message_type
-            mails.append(mail)
-        return mails
+            except:
+                time = str(make_header(decode_header(email_message.get('Date'))))
+                    
+            memory = {}
+            memory['from'] = sender
+            memory['to'] = receiver
+            memory['content'] = body
+            memory['timestamp'] = time
+            memory['type'] = message_type
+            memorys.append(memory)
+            memory['title'] = subject.strip('Re: ')
+            mails.append(memory)
+
+        mails_combined = {}
+        for i, v in itertools.groupby(mails, lambda i:i['title']):
+            mails_combined[i] = list(v)
+
+        return memorys, mails_combined
 
     def send_email(self, user, password, receiver, title, content):
-        
 
         sender = user
         #587포트 및 465포트 존재
