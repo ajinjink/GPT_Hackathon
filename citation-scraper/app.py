@@ -55,7 +55,7 @@ def extract_pdf_text(pdf_url):
 
 
 def main():
-    st.title("📚 arXiv 논문 검색 및 PDF 뷰어")
+    st.title("📚 논문 검색 및 PDF 뷰어")
 
     with st.sidebar:
         st.header("검색 설정")
@@ -89,12 +89,15 @@ def main():
 
             st.session_state.search_results = results
 
-    # 검색 결과 표시
+    # 검색 결과 표시 부분을 수정
     if "search_results" in st.session_state:
         st.header("검색 결과")
 
         for idx, result in enumerate(st.session_state.search_results):
-            with st.expander(f"📄 {result.title}"):
+            # PDF 텍스트 상태를 저장하기 위한 session_state 키 생성
+            pdf_key = f"pdf_text_{idx}"
+
+            with st.expander(f"{result.title}"):
                 st.markdown(f"### {result.title}")
                 st.markdown(
                     f"**저자:** {', '.join([str(author) for author in result.authors])}"
@@ -110,15 +113,25 @@ def main():
                 if st.button("PDF 텍스트 보기", key=f"pdf_{idx}"):
                     pdf_text = extract_pdf_text(result.pdf_url)
                     if pdf_text:
-                        st.markdown("### PDF 내용")
-                        st.text_area("", pdf_text, height=300)
+                        st.session_state[pdf_key] = pdf_text
 
-                        st.download_button(
-                            label="텍스트 파일로 다운로드",
-                            data=pdf_text,
-                            file_name=f"{result.title}.txt",
-                            mime="text/plain",
-                        )
+                # 저장된 PDF 텍스트가 있으면 표시
+                if pdf_key in st.session_state:
+                    st.markdown("### 논문 내용")
+                    st.text_area(
+                        "",
+                        st.session_state[pdf_key],
+                        height=300,
+                        key=f"text_area_{idx}",
+                    )
+
+                    st.download_button(
+                        label="텍스트 파일로 다운로드",
+                        data=st.session_state[pdf_key],
+                        file_name=f"{result.title}.txt",
+                        mime="text/plain",
+                        key=f"download_{idx}",
+                    )
 
 
 if __name__ == "__main__":
