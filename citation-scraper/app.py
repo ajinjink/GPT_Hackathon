@@ -59,18 +59,20 @@ Please provide:
 
 Format your response exactly as follows:
 
-**Abstract Summary**
-[Your 3-5 sentence summary here]
+### **Summary**
+- [Your 3-5 sentence summary here]
 
-**Key Findings**
-• [Main finding/conclusion 1]
-• [Main finding/conclusion 2]
-• [Main finding/conclusion 3]
+### **Key Findings**
+- [Main finding/conclusion 1]
 
-**Methodology & Results**
-[Summary of methods and key results if applicable]
+- [Main finding/conclusion 2]
 
----"""
+- [Main finding/conclusion 3]
+
+### **Methodology & Results**
+- [Summary of methods and key results if applicable]
+
+"""
 
     try:
         if not paper_text or len(paper_text.strip()) < 100:
