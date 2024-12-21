@@ -23,17 +23,13 @@ class email_manage():
 
         memorys = []
         mails = []
-        for recent in messages:
+        for recent in reversed(messages[-10:]):
 
             res, msg = imap.uid('fetch', recent, "(RFC822)")
             raw = msg[0][1].decode('utf-8')
 
-
-
             # raw에서 원하는 부분만 파싱하기 위해 email 모듈을 이용해 변환
-            email_message = email.message_from_string(raw)
-
-            
+            email_message = email.message_from_string(raw)            
             
             # 보낸 사람, 받는 사람
             try:
@@ -43,7 +39,7 @@ class email_manage():
             except:
                 message_type = 'received'
                 receiver = user
-                sender = str(make_header(decode_header(email_message.get('From')))).split('<')[1][:-1]
+                sender = str(make_header(decode_header(email_message.get('From')))).split('<')[-1][:-1]
 
             # 메일 제목
             subject = str(make_header(decode_header(email_message.get('Subject'))))
@@ -101,8 +97,10 @@ class email_manage():
         smtp.login(user, password)
 
         #내용을 입력하는 MIMEText => 다른 라이브러리 사용 가능
-        msg = MIMEText(title)
-        msg['Subject'] = content
+        msg = MIMEText(content)
+        msg['Subject'] = title
+        msg['From'] = sender
+        msg['To'] = receiver
 
         #이메일을 보내기 위한 설정(Cc도 가능)
         smtp.sendmail(sender, receiver, msg.as_string())
