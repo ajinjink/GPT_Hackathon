@@ -9,9 +9,13 @@ from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 
+st.set_page_config(
+    page_title="AI 이메일 어시스턴트",
+    page_icon="📧",
+)
+
 load_dotenv(".env")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
 
 # CSS 스타일 정의
 st.markdown(
@@ -385,11 +389,6 @@ def main(email_manager, useremail, password):
 if __name__ == "__main__":
     email_a = os.getenv("USER_EMAIL")
     password = os.getenv("PASSWORD")
-
-    st.set_page_config(
-        page_title="AI 이메일 어시스턴트",
-        page_icon="📧",
-    )
 
     email_manager = email_manage()
     main(email_manager, email_a, password)
