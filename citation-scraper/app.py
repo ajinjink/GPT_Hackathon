@@ -1,4 +1,5 @@
 import os
+import webbrowser
 from io import BytesIO
 
 import arxiv
@@ -152,9 +153,13 @@ def main():
                 if result.doi:
                     st.markdown(f"**DOI:** {result.doi}")
 
+                # pdf 링크 버튼
+                if st.button("PDF 링크", key=f"pdf_link_{idx}"):
+                    webbrowser.open_new_tab(result.pdf_url)
+
                 st.markdown("### 초록")
                 st.markdown(result.summary.replace("\n", " "))
-                st.markdown(f"[PDF 링크]({result.pdf_url})")
+                # st.markdown(f"[PDF 링크]({result.pdf_url})")
 
                 # AI 요약 버튼
                 if st.button("AI 요약 보기", key=f"summary_{idx}"):
